@@ -107,6 +107,19 @@
         }
       }
 
+      .downloads, .versions { display: flex; flex-wrap: wrap; gap: 8px; }
+      .bar { flex-wrap: wrap; }
+      .versions { max-width: 1500px; margin: 0 auto; padding: 0 16px 12px; align-items: center; }
+      .versions button[aria-pressed="true"], .ib[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+      .versions small { color: var(--muted); }
+      .ib:disabled { opacity: .45; cursor: default; }
+      .lb .top { flex-wrap: wrap; }
+      .compare { display: flex; gap: 6px; }
+      @media(max-width:520px) {
+        .brand { flex-basis: 100%; }
+        .downloads .zip { font-size: 12px; padding: 8px 10px; }
+        .compare { order: 4; width: 100%; justify-content: center; }
+      }
       main {
         max-width: 1500px;
         margin: 0 auto;
@@ -330,9 +343,15 @@
           <h1>Soirée du 10 octobre</h1>
           <p id="sub">Photos · regarde, choisis, télécharge</p>
         </div>
-        <a class="zip" href="https://github.com/Faresclt/soiree-10-octobre/releases/download/photos/soiree-10-octobre-photos.zip" download
-          >⬇ Tout télécharger <small>ZIP · 133 Mo</small></a
-        >
+        <div class="downloads">
+          <a class="zip" href="https://github.com/Faresclt/soiree-10-octobre/releases/download/photos/soiree-10-octobre-photos.zip" download>⬇ Sélection retouchée <small>ZIP · 133 Mo</small></a>
+          <a class="zip" href="https://github.com/Faresclt/soiree-10-octobre/releases/download/photos/soiree-10-octobre-originaux.zip" download>⬇ Tous les originaux <small>ZIP · 1,28 Go</small></a>
+        </div>
+      </div>
+      <div class="versions" aria-label="Version de la galerie">
+        <button class="ib" id="gallery-retouched" aria-pressed="true">Sélection retouchée</button>
+        <button class="ib" id="gallery-original" aria-pressed="false">Originaux</button>
+        <small>133 retouches · 14 photos conservées en original</small>
       </div>
     </header>
 
@@ -356,6 +375,10 @@
     >
       <div class="top">
         <span class="cnt" id="cnt"></span>
+        <div class="compare" aria-label="Comparer les versions">
+          <button class="ib" id="view-original" aria-pressed="false">Original</button>
+          <button class="ib" id="view-retouched" aria-pressed="true">Retouchée</button>
+        </div>
         <a class="ib pri" id="dlone" href="#" download>⬇ Télécharger</a>
         <button type="button" class="ib icon" id="close" aria-label="Fermer">
           ✕
@@ -390,7 +413,8 @@
           dlone = $("#dlone"),
           hint = $("#hint");
         const touch = () => matchMedia("(hover:none)").matches;
-        let cur = -1;
+        let cur = -1, galleryVersion = "retouched", version = "retouched";
+        const originalsUrl = "https://github.com/Faresclt/soiree-10-octobre/releases/download/photos/";
 
         $("#sub").textContent =
           `${PHOTOS.length} photos · regarde, choisis, télécharge`;
@@ -414,6 +438,7 @@
 
         function open(i) {
           cur = i;
+          version = galleryVersion;
           lb.classList.add("on");
           document.body.style.overflow = "hidden";
           show(i);
@@ -427,22 +452,42 @@
         }
         function show(i) {
           const p = PHOTOS[i];
+          const original = version === "original" || !p.retouched;
+          const folder = original ? "o" : "r";
           cnt.textContent = `${i + 1} / ${PHOTOS.length}`;
+          $("#view-original").setAttribute("aria-pressed", String(original));
+          $("#view-retouched").setAttribute("aria-pressed", String(!original));
+          $("#view-retouched").disabled = !p.retouched;
           lb.classList.add("loading");
-          big.src = `r/${p.id}.jpg`;
           big.onload = () => lb.classList.remove("loading");
-          dlone.href = `r/${p.id}.jpg`;
-          dlone.download = `${p.id}.jpg`;
-          hint.textContent = touch()
+          big.src = `${folder}/${p.id}.jpg`;
+          big.alt = `${p.id} — ${original ? "original" : "retouchée"}`;
+          dlone.href = original ? `${originalsUrl}${p.id}.JPG` : `r/${p.id}.jpg`;
+          dlone.download = `${p.id}${original ? "-original" : "-retouchee"}.jpg`;
+          dlone.textContent = original ? "⬇ Original pleine qualité" : "⬇ Retouchée";
+          const help = touch()
             ? "Maintiens le doigt sur la photo → « Enregistrer dans Photos ». Glisse pour passer à la suivante."
             : "← → pour naviguer · Échap pour fermer";
+          hint.textContent = (!p.retouched ? "Original conservé pour cette photo. " : "") + (original ? "Aperçu allégé · bouton pour télécharger le fichier original. " : "") + help;
           [i + 1, i - 1].forEach((j) => {
             if (PHOTOS[j]) {
               const im = new Image();
-              im.src = `r/${PHOTOS[j].id}.jpg`;
+              im.src = `${version === "original" || !PHOTOS[j].retouched ? "o" : "r"}/${PHOTOS[j].id}.jpg`;
             }
           });
         }
+        function setGallery(next) {
+          galleryVersion = next;
+          $("#gallery-original").setAttribute("aria-pressed", String(next === "original"));
+          $("#gallery-retouched").setAttribute("aria-pressed", String(next === "retouched"));
+          grid.querySelectorAll("img").forEach((img, i) => {
+            img.src = `${next === "original" ? "ot" : "t"}/${PHOTOS[i].id}.jpg`;
+          });
+        }
+        $("#gallery-original").addEventListener("click", () => setGallery("original"));
+        $("#gallery-retouched").addEventListener("click", () => setGallery("retouched"));
+        $("#view-original").addEventListener("click", () => { version = "original"; show(cur); });
+        $("#view-retouched").addEventListener("click", () => { version = "retouched"; show(cur); });
         const step = (d) => {
           if (cur < 0) return;
           cur = (cur + d + PHOTOS.length) % PHOTOS.length;
